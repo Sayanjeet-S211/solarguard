@@ -1,0 +1,195 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>SolarGuard Digital Twin</title><style>
+:root{--bg:#eef3f8;--card:#fff;--txt:#10202f;--mut:#566a7e;--line:#cfdae5;--acc:#0a86a8;--ok:#0f9d6b;--warn:#d9822b;--bad:#d64550;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a1220;--card:#111d30;--txt:#e6f0fb;--mut:#93a8bf;--line:#243a54;--acc:#45d6f2;--ok:#4fe0a6;--warn:#f0a458;--bad:#ff6b76}}
+:root[data-theme="dark"]{--bg:#0a1220;--card:#111d30;--txt:#e6f0fb;--mut:#93a8bf;--line:#243a54;--acc:#45d6f2;--ok:#4fe0a6;--warn:#f0a458;--bad:#ff6b76}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.45 system-ui,Segoe UI,Arial,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px}h1{font-size:18px;margin:0}header small{color:var(--mut)}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:12px;padding:0 12px 12px;max-width:1700px;margin:auto}
+.view{position:relative;height:calc(100vh - 80px);min-height:470px;border-radius:14px;overflow:hidden;border:1px solid var(--line)}canvas{width:100%;height:100%;display:block}
+.bar{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}.bar button{pointer-events:auto}
+button{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px}button:hover{border-color:var(--acc)}button.on{border-color:var(--acc);color:var(--acc)}
+.glass{background:color-mix(in srgb,var(--card) 82%,transparent);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px}
+#chart{position:absolute;left:10px;bottom:10px;padding:8px 10px}#chart small{color:var(--mut)}#ch{width:300px;height:96px;display:block}
+#tip{position:absolute;display:none;pointer-events:none;max-width:240px;padding:8px 10px;z-index:3}#tip b{display:block;color:var(--acc)}
+.lbl{position:absolute;pointer-events:none;font-size:11px;padding:1px 6px;border-radius:6px;background:var(--card);border:1px solid var(--line);white-space:nowrap;transform:translate(8px,-8px);display:none}
+.side{display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 80px);overflow:auto}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+.card h2{font-size:11px;letter-spacing:.09em;color:var(--mut);margin:0 0 8px}.row{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}
+.v{font-weight:600;font-variant-numeric:tabular-nums}.badge{border-radius:20px;padding:1px 9px;font-size:11px;font-weight:600;background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}.badge.w{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}.badge.b{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad)}.badge.i{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--acc)}
+.ctl{margin:7px 0}.ctl label{display:flex;justify-content:space-between;font-size:12px;color:var(--mut)}input[type=range]{width:100%;accent-color:var(--acc)}.sw{display:flex;justify-content:space-between;margin:6px 0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:6px}#log{height:96px;overflow:auto;font:11px/1.5 ui-monospace,monospace;color:var(--mut);white-space:pre-wrap}.note{font-size:11px;color:var(--mut)}
+@media(max-width:950px){.app{grid-template-columns:1fr}.view{height:62vh}.side{max-height:none}}
+
+/* ===== Forecast + automation additions ===== */
+.badge.m{background:color-mix(in srgb,var(--mut) 18%,transparent);color:var(--mut)}
+.fwrap{position:relative;pointer-events:auto}
+.fbtn{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.fbtn.on{border-color:var(--acc);color:var(--acc)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);display:inline-block;flex:none}
+.dot.i{background:var(--acc)}.dot.w{background:var(--warn)}.dot.b{background:var(--bad)}.dot.m{background:var(--mut);opacity:.6}
+.dot.pulse{animation:pl 1.1s ease-in-out infinite}@keyframes pl{50%{opacity:.35;transform:scale(1.35)}}
+.fpop{display:none;position:absolute;top:100%;left:0;z-index:6;width:330px;max-width:86vw;max-height:calc(100vh - 170px);overflow:auto;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.28);text-align:left;margin-top:6px}
+.fpop::before{content:"";position:absolute;left:0;right:0;top:-8px;height:8px}
+.fwrap.r .fpop{left:auto;right:0}
+.fwrap:hover .fpop,.fwrap.pin .fpop{display:block}
+.fpop .fh{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}.fpop .fh b{font-size:13px}.fpop .fh small{color:var(--mut);font-size:11px}
+.fx{display:none;padding:1px 7px}.fwrap.pin .fx{display:inline-block}
+.fpop h3{font-size:11px;letter-spacing:.09em;color:var(--mut);margin:10px 0 5px}
+.al{display:flex;gap:7px;align-items:flex-start;padding:6px 8px;border-radius:8px;margin:4px 0;font-size:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--card) 90%,var(--mut))}
+.al.b{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--card))}.al.w{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,var(--card))}.al.i{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,var(--card))}.al.ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--card))}
+.al .dot{margin-top:4px}
+.full{display:none}.fwrap.pin .full{display:block}.hint{display:block;color:var(--mut);font-size:11px;margin-top:8px}.fwrap.pin .hint{display:none}
+#fcc{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:8px}
+.au{display:grid;grid-template-columns:14px 1fr auto;gap:4px 9px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}.au:last-of-type{border:0}
+.au b{font-size:13px}.au small{display:block;color:var(--mut);font-size:11px}
+.mini{grid-column:2/4;height:7px;border-radius:5px;background:var(--line);overflow:hidden}.mini i{display:block;height:100%;width:50%;background:var(--ok);transition:width .3s,background .3s}
+@media(max-width:950px){.fpop{max-height:50vh}}
+</style><style>html,body{background:#0b141a!important}header,.side,.bar,#chart{display:none!important}.app{display:block;padding:0;margin:0;max-width:none}.view{height:100vh;min-height:0;border:0;border-radius:0}:root{--card:#111e25;--txt:#e8f0ed;--acc:#95e5c9;--line:#293b43}</style></head><body>
+<header><div><h1>☀ SolarGuard · Digital Twin</h1><small>Automated panel cleaning + conditional cooling · physics-based simulation</small></div><div><span class="badge i" id="clock">12:00:00</span> <span class="badge" id="state">IDLE</span></div></header>
+<main class="app"><section class="view" id="view"><canvas id="c"></canvas>
+<div class="bar"><button data-cam="ov">Overview</button><button data-cam="cl">Carriage</button><button data-cam="el">Electronics</button><button data-cam="top">Top view</button><button id="lb">Labels</button><button id="xr" class="on">X-ray box</button><div class="fwrap" id="fw"><button id="fc" class="fbtn" aria-haspopup="true" aria-expanded="false"><i class="dot" id="fdot"></i>Forecast</button>
+<div class="fpop" id="fpop" role="dialog" aria-label="Forecast">
+<div class="fh"><div><b>Forecast</b> <small id="fcH">next 10 min (sim time)</small></div><button class="fx" id="fx" title="Close">✕</button></div>
+<div class="row"><span>Current temperature <small class="note">(Panel A)</small></span><span class="v" id="fcT">—</span></div>
+<div class="row"><span>Estimated in ~10 min</span><span class="v" id="fcE">—</span></div>
+<div class="row"><span>Trend (recent readings)</span><span class="v" id="fcR">—</span></div>
+<h3>FORECAST ALERT</h3><div id="fcA"></div>
+<div class="full">
+<h3>TEMPERATURE · RECENT vs FORECAST</h3><canvas id="fcc" width="560" height="170"></canvas>
+<h3>SCENARIO CONTROLS</h3>
+<div class="g2"><button data-sc="noon">☀ Hot noon</button><button data-sc="dust">🌫 Dusty day</button><button data-sc="rain">🌧 Rainy day</button><button data-sc="low">💧 Low water</button></div>
+<p class="note" style="margin:6px 0 0">Picking a scenario resets the simulation with those conditions so you can watch the forecast react.</p>
+</div>
+<span class="hint">Click <b>Forecast</b> to pin this panel and open scenario controls.</span>
+</div></div></div>
+<div id="chart" class="glass"><small>Power A (cleaned/cooled) vs B (control), W</small><canvas id="ch" width="600" height="192"></canvas></div><div id="tip" class="glass"><b></b><span></span></div></section>
+<aside class="side">
+<section class="card"><h2>AUTOMATION STATUS</h2>
+<div class="au"><i class="dot m" id="auCd"></i><div><b>Cleaning</b><small id="auCs">—</small></div><span class="badge m" id="auCb">STANDBY</span></div>
+<div class="au"><i class="dot m" id="auKd"></i><div><b>Cooling</b><small id="auKs">—</small></div><span class="badge m" id="auKb">STANDBY</span></div>
+<div class="au"><i class="dot" id="auWd"></i><div><b>Water availability</b><small id="auWs">—</small></div><span class="badge" id="auWb">AVAILABLE</span><div class="mini"><i id="auWbar"></i></div></div>
+</section>
+<section class="card"><h2>CONTROLLER</h2><div class="row"><span>Mode</span><span class="badge i" id="mode">AUTO</span></div><div class="row"><span>Carriage</span><span class="v" id="cS">PARKED</span></div><div class="row"><span>Pump</span><span class="v" id="pS">OFF</span></div><div class="row"><span>Clean trigger (SI&lt;0.90)</span><span class="v" id="trig">0%</span></div><div class="row"><span>Cooling lockout</span><span class="v" id="lock">0 s</span></div></section>
+<section class="card"><h2>TELEMETRY · A vs CONTROL B</h2><div class="row"><span>Soiling index A / B</span><span class="v" id="si">1.00 / 1.00</span></div><div class="row"><span>Panel temp A / B</span><span class="v" id="tp">— / —</span></div><div class="row"><span>V · I (A)</span><span class="v" id="vi">—</span></div><div class="row"><span>Power A / B</span><span class="v" id="pw">—</span></div><div class="row"><span>Gain vs control</span><span class="v" id="gn">—</span></div><div class="row"><span>Energy A / B</span><span class="v" id="en">—</span></div><div class="row"><span>System use · net gain</span><span class="v" id="net">—</span></div><div class="row"><span>Tank · water used</span><span class="v" id="wt">—</span></div><div class="row"><span>Battery</span><span class="v" id="bt">—</span></div></section>
+<section class="card"><h2>CONDITIONS</h2>
+<div class="ctl"><label>Sunlight (irradiance) <output id="sunO"></output></label><input id="sun" type="range" min="0" max="100" value="85"></div>
+<div class="ctl"><label>Ambient temperature <output id="ambO"></output></label><input id="amb" type="range" min="10" max="48" value="34"></div>
+<div class="ctl"><label>Dust (sets both panels) <output id="dustO"></output></label><input id="dust" type="range" min="0" max="100" value="12"></div>
+<div class="ctl"><label>Water tank <output id="tankO"></output></label><input id="tank" type="range" min="0" max="100" value="80"></div>
+<div class="ctl"><label>Time speed <output id="spdO"></output></label><input id="spd" type="range" min="1" max="120" value="30"></div>
+<div class="sw"><label>Rain (skip water)</label><input id="rain" type="checkbox"></div><div class="sw"><label>Automatic mode</label><input id="auto" type="checkbox" checked></div>
+<div class="g2"><button id="clean">Run cleaning</button><button id="cool">Run cooling</button><button id="addd">Add dust</button><button id="heat">Heat spike +10 °C</button><button id="stop">STOP</button><button id="rst">Reset sim</button></div>
+<div class="g2" style="margin-top:6px"><button data-sc="noon">Hot noon</button><button data-sc="dust">Dusty day</button><button data-sc="rain">Rainy</button><button data-sc="low">Low tank</button></div></section>
+<section class="card"><h2>SELECTED COMPONENT</h2><div id="info"><b>Nothing selected</b><br><span class="note">Hover or click any part in the 3D model.</span></div></section>
+<section class="card"><h2>EVENT LOG</h2><div id="log"></div></section>
+<section class="card"><h2>MODEL NOTES</h2><p class="note">Simulated physics: PV power = 20 W × G/1000 × soiling × (1 − 0.4 %/°C × (T − 25)); panel heating from a thermal-mass balance; wiping, spray, battery and energy use are modelled. Geometry is illustrative, not manufacturing CAD. Values are not measurements.</p><p class="note">Forecast: a recency-weighted trend is fitted to recent simulated Panel A temperature readings and projected 10 simulated minutes ahead, damped towards the thermal equilibrium. Alerts compare that projection with the 45 °C cooling trigger and the 0.90 soiling-index cleaning trigger.</p></section>
+</aside></main>
+<script src="assets/three.min.js"></script>
+<script src="assets/OrbitControls.js"></script>
+<script>
+(()=>{
+const T=THREE,$=i=>document.getElementById(i),W=3,L=2.1,TILT=.42,view=$('view');
+const R=new T.WebGLRenderer({canvas:$('c'),antialias:true});R.setPixelRatio(Math.min(devicePixelRatio||1,2));R.shadowMap.enabled=true;
+const scene=new T.Scene();scene.background=new T.Color(0x9cc4e4);scene.fog=new T.Fog(0x9cc4e4,20,48);
+const cam=new T.PerspectiveCamera(42,1,.1,100);cam.position.set(0,4.8,10.2);
+const ctl=new T.OrbitControls(cam,R.domElement);ctl.target.set(0,1.2,-.3);ctl.enableDamping=true;ctl.maxPolarAngle=1.52;
+const hemi=new T.HemisphereLight(0xcfe6ff,0x556070,.8);scene.add(hemi);
+const sunL=new T.DirectionalLight(0xfff2dd,1.6);sunL.position.set(5,9,6);sunL.castShadow=true;sunL.shadow.mapSize.set(2048,2048);Object.assign(sunL.shadow.camera,{left:-10,right:10,top:10,bottom:-10,near:1,far:32});sunL.shadow.camera.updateProjectionMatrix();scene.add(sunL);
+const gnd=new T.Mesh(new T.PlaneGeometry(80,80),new T.MeshStandardMaterial({color:0x7d8b76,roughness:1}));gnd.rotation.x=-Math.PI/2;gnd.receiveShadow=true;scene.add(gnd);
+const parts=[];const mat=(c,o={})=>new T.MeshStandardMaterial(Object.assign({color:c,roughness:.5,metalness:.15},o));
+const Bx=(w,h,d)=>new T.BoxGeometry(w,h,d),Cy=(r,h,s=28)=>new T.CylinderGeometry(r,r,h,s);
+function P(name,desc,geo,c,pos,par,o,rot){const m=new T.Mesh(geo,mat(c,o));m.position.set(...pos);if(rot)m.rotation.set(...rot);m.castShadow=m.receiveShadow=true;m.userData={name,desc};(par||scene).add(m);parts.push(m);return m}
+P('Concrete pad','Level base for the stand, tank and enclosure.',Bx(13,.06,8),0xb7bcc0,[0,.03,-.4],0,{roughness:.9});
+// panels
+function cellTex(){const c=document.createElement('canvas');c.width=512;c.height=384;const g=c.getContext('2d');g.fillStyle='#0b2440';g.fillRect(0,0,512,384);for(let i=0;i<6;i++)for(let j=0;j<4;j++){const x=i*85+4,y=j*95+4,gr=g.createLinearGradient(x,y,x+77,y+87);gr.addColorStop(0,'#1a5a9a');gr.addColorStop(1,'#0e386a');g.fillStyle=gr;g.fillRect(x,y,77,87);g.strokeStyle='#a9c4de';g.lineWidth=1;for(let k=1;k<4;k++){g.beginPath();g.moveTo(x+k*19.25,y);g.lineTo(x+k*19.25,y+87);g.stroke()}}const t=new T.CanvasTexture(c);t.anisotropy=8;return t}
+const nd=new Uint8Array(128*128*4);for(let i=0;i<nd.length;i+=4){nd[i]=nd[i+1]=nd[i+2]=Math.random()*255;nd[i+3]=255}
+const noise=new T.DataTexture(nd,128,128,T.RGBAFormat);noise.wrapS=noise.wrapT=T.RepeatWrapping;noise.magFilter=noise.minFilter=T.LinearFilter;noise.needsUpdate=true;const ctex=cellTex();
+function panel(cx,tag){const G=new T.Group();G.position.set(cx,1.5,0);G.rotation.x=TILT;scene.add(G);
+ const side=mat(0x9aa7b3,{metalness:.8,roughness:.35});const top=new T.MeshPhysicalMaterial({map:ctex,roughness:.12,metalness:.1,clearcoat:1,clearcoatRoughness:.04});
+ const b=P(tag+' PV panel','Converts sunlight to DC power. Output falls with soiling and rising temperature.',Bx(W,.06,L),0x164b6a,[0,0,0],G);b.material=[side,side,top,side,side,side];
+ [[-W/2-.02,0],[W/2+.02,0]].forEach(p=>P('Panel frame','Aluminium frame holding the laminate.',Bx(.05,.09,L+.05),0xa7b2bd,[p[0],.01,0],G,{metalness:.8}));
+ [-L/2-.02,L/2+.02].forEach(z=>P('Panel frame','Aluminium frame holding the laminate.',Bx(W+.09,.09,.05),0xa7b2bd,[0,.01,z],G,{metalness:.8}));
+ [-1.2,1.2].forEach(x=>{P('Support post (front)','Short front leg of the tilted stand.',Bx(.07,1.07,.07),0x8c99a6,[cx+x,.535,.96],0,{metalness:.7});P('Support post (rear)','Tall rear leg sets the tilt angle.',Bx(.07,1.93,.07),0x8c99a6,[cx+x,.965,-.96],0,{metalness:.7})});
+ const arr=new Float32Array(64).fill(.12),data=new Uint8Array(64*4),tex=new T.DataTexture(data,64,1,T.RGBAFormat);tex.minFilter=tex.magFilter=T.LinearFilter;
+ const dm=new T.Mesh(new T.PlaneGeometry(W,L),new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{dm:{value:tex},nz:{value:noise}},vertexShader:'varying vec2 u;void main(){u=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 u;uniform sampler2D dm,nz;void main(){float d=texture2D(dm,vec2(u.y,.5)).r;float n=texture2D(nz,u*vec2(6.,4.)).r;gl_FragColor=vec4(.62,.5,.34,d*(.3+.7*n)*.9);}'}));dm.rotation.x=-Math.PI/2;dm.position.y=.035;G.add(dm);
+ const wet=new T.Mesh(new T.PlaneGeometry(W,L),new T.MeshPhysicalMaterial({color:0x8fd3ff,transparent:true,opacity:0,roughness:.03,depthWrite:false,clearcoat:1}));wet.rotation.x=-Math.PI/2;wet.position.y=.04;G.add(wet);
+ return {G,arr,data,tex,wet}}
+const A=panel(-1.9,'Panel A'),B=panel(1.9,'Control B'),GA=A.G;
+// rails, carriage, drive (panel A)
+const rx=W/2+.14;[-rx,rx].forEach(x=>P('8 mm guide rod','Smooth rod; LM8UU bearings slide along it.',Cy(.025,L+.7),0xcfd8e0,[x,.2,0],GA,{metalness:.9,roughness:.2},[Math.PI/2,0,0]));
+[-L/2-.32,L/2+.32].forEach(z=>[-rx,rx].forEach(x=>P('Rod end bracket','Printed bracket gripping the rod end (M3 grub screw).',Bx(.12,.34,.12),0x1d9e75,[x,.1,z],GA)));
+const CG=new T.Group();GA.add(CG);
+[-rx,rx].forEach((x,i)=>P(i?'Carriage block (idle)':'Carriage block (drive)','Printed block with 2 LM8UU bearings; the drive side clamps the belt.',Bx(.16,.2,.3),0x1d9e75,[x,.2,0],CG));
+P('Cross bar Ø8','Aluminium bar joining both carriage blocks.',Cy(.022,W+.3),0xcfd8e0,[0,.115,0],CG,{metalness:.9},[0,0,Math.PI/2]);
+[-W/2+.25,W/2-.25].forEach(x=>P('Wiper arm','Pivots on the cross bar; spring presses the blade on the glass.',Bx(.05,.12,.04),0x1d9e75,[x,.07,.01],CG));
+P('Silicone squeegee blade','Flexible lip pushes dust and water down the panel.',Bx(W-.1,.05,.025),0x202830,[0,.03,.02],CG,{roughness:.9});
+const bx=-rx;P('Belt (lower run)','GT2 belt clamped to the drive block; moves the carriage.',Bx(.02,.012,L+.6),0x1c1c1f,[bx,.33,0],GA,{roughness:.9});P('Belt (upper run)','Return run of the GT2 belt.',Bx(.02,.012,L+.6),0x1c1c1f,[bx,.53,0],GA,{roughness:.9});
+P('Idler pulley','Top-end pulley; slotted bracket sets belt tension.',Cy(.1,.05),0xb7c3cf,[bx,.43,-L/2-.3],GA,{metalness:.8},[0,0,Math.PI/2]);
+P('25GA-370 12 V gear motor','Drives the pulley through the gearbox (about 60 RPM).',Cy(.12,.4),0x34475b,[bx-.05,.43,L/2+.3],GA,{metalness:.6},[0,0,Math.PI/2]);
+P('Motor pulley (GT2 20T)','Pulley on the motor shaft that drives the belt.',Cy(.1,.05),0xb7c3cf,[bx+.2,.43,L/2+.3],GA,{metalness:.8},[0,0,Math.PI/2]);
+P('Motor mount + strap','Printed cradle and strap holding the motor.',Bx(.3,.1,.3),0x1d9e75,[bx-.05,.27,L/2+.3],GA);
+[-L/2+.04,L/2-.04].forEach((z,i)=>P(i?'Bottom end-stop sensor':'Top end-stop sensor','IR sensor in a clamp on the rod; stops the carriage at its limit.',Bx(.08,.14,.1),0xe65e68,[bx-.16,.2,z],GA));
+const SB=P('Spray bar (fixed)','12 mm tube across the top; nozzles mist water onto the panel.',Cy(.03,W),0x46c78e,[0,.14,-L/2-.1],GA,0,[0,0,Math.PI/2]);
+const nz=[];for(let i=0;i<5;i++){const x=-W/2+.35+i*(W-.7)/4;P('Spray nozzle','Misting nozzle on the spray bar.',new T.ConeGeometry(.03,.07,10),0xe2e9ef,[x,.07,-L/2-.1],GA,0,[Math.PI,0,0]);nz.push(x)}
+P('DS18B20 panel temperature probe','Waterproof probe taped to the panel back: panel temperature.',Bx(.07,.05,.14),0x4ecb94,[W/2+.07,-.03,.55],GA);
+P('Reference mini PV cell','Small clean cell: its current tracks sunlight so soiling can be told apart from clouds.',Bx(.8,.04,.6),0x164b6a,[0,1.62,.7],0,0,[TILT,0,0]);
+P('Rain sensor','Detects rain so water use is skipped.',Bx(.4,.03,.28),0x326ca0,[-3.75,2.2,-1],0,0,[TILT,0,0]);
+P('Rain sensor pole','Pole holding the rain sensor.',Cy(.02,2.2),0x8c99a6,[-3.75,1.1,-1.15]);
+// water system
+const tank=P('Water tank','Reservoir; the controller blocks the pump when the level is low.',Cy(.5,1.1),0x7aa7cf,[-5.2,.58,.4],0,{transparent:true,opacity:.35});
+const wv=P('Water in tank','Current water volume.',Cy(.47,1),0x2f7fc0,[-5.2,.58,.4],0,{transparent:true,opacity:.8});
+P('Tank level sensor','Optical sensor reporting low water.',Bx(.08,.2,.08),0xe2e9ef,[-5.2,1.2,.4]);
+P('12 V water pump','Diaphragm pump moves water through the filter to the spray bar.',Bx(.35,.25,.3),0x39a978,[-4.4,.19,1.25]);
+P('Inline filter','Catches particles that would block the nozzles.',Cy(.07,.3),0xe2e9ef,[-4.0,.2,1.25],0,0,[0,0,Math.PI/2]);
+GA.updateMatrixWorld(true);const bar=GA.localToWorld(new T.Vector3(-W/2,.14,-L/2-.1));
+P('Water tubing','Silicone tube from tank and pump to the spray bar.',new T.TubeGeometry(new T.CatmullRomCurve3([new T.Vector3(-3.7,.2,1.25),new T.Vector3(-3.5,.1,.4),new T.Vector3(-3.9,.1,-1.2),new T.Vector3(-4,.9,-1.25),bar]),48,.022,8),0x39c9ef,[0,0,0]);
+const nW=nz.map(x=>GA.localToWorld(new T.Vector3(x,.04,-L/2-.1))),o0=GA.localToWorld(new T.Vector3()),sDir=GA.localToWorld(new T.Vector3(0,.1,1.5)).sub(o0);
+// enclosure
+const E=new T.Group();E.position.set(0,.76,-2.9);scene.add(E);
+const bd=(n,d,g,c,p,o)=>P(n,d,g,c,p,E,o);
+bd('ESP32-S2-DevKitM-1','Main controller: reads sensors, runs the control rules, hosts Wi-Fi logging.',Bx(.6,.36,.04),0x158467,[-1.1,.3,-.4]);bd('L298N motor driver','H-bridge switching motor direction and speed.',Bx(.6,.45,.12),0xb84550,[-.4,.3,-.37]);
+bd('5V relay module','Switches the 12 V pump from an ESP32 pin.',Bx(.55,.3,.2),0x2a6bb0,[.3,.3,-.33]);bd('LM2596 buck converter','Steps 12 V down to a regulated 5 V.',Bx(.5,.28,.1),0x3277b0,[.95,.3,-.37]);
+bd('3S battery + BMS','Three 18650 cells in series with a protection board.',Bx(.9,.38,.3),0x1d2732,[-1.0,-.3,-.3]);bd('Charge controller','Charges the pack from Panel A (Li-ion 3S setting).',Bx(.55,.38,.18),0x245d87,[-.2,-.3,-.35]);
+bd('ACS712 current sensor','Hall sensor measuring Panel A current (needs divider to the ESP32).',Bx(.4,.26,.1),0x24876a,[.4,-.3,-.37]);bd('Voltage divider','100k / 10k divider scaling panel voltage for the ADC.',Bx(.3,.2,.08),0xdca34e,[.85,-.3,-.37]);bd('ESP32-CAM','Optional camera extension; no trained model connected.',Bx(.3,.3,.08),0x16735b,[1.28,-.3,-.37]);
+const shell=P('Electronics enclosure','Concept enclosure; sealing and splash protection unverified. Keep it above the splash zone.',Bx(3.4,1.5,1.1),0x7d93a8,[0,0,0],E,{transparent:true,opacity:.2,depthWrite:false,roughness:.2});
+P('DHT22 temperature / humidity sensor','Measures ambient air temperature and humidity.',Bx(.14,.22,.12),0xdfe7ed,[2.0,1.9,-2.5]);P('DHT22 mounting post','Post for the DHT22 sensor.',Cy(.02,1.9),0x8c99a6,[2.0,.95,-2.5]);
+// particles + rain
+const NP=600,pp=new Float32Array(NP*3).fill(-50),pv=new Float32Array(NP*3),pl=new Float32Array(NP);const pg=new T.BufferGeometry();pg.setAttribute('position',new T.BufferAttribute(pp,3));
+const pts=new T.Points(pg,new T.PointsMaterial({color:0x9fe0ff,size:.05,transparent:true,opacity:.85}));pts.frustumCulled=false;scene.add(pts);
+function emit(n){for(let k=0;k<n;k++){const i=pl.findIndex(v=>v<=0);if(i<0)return;const q=nW[(Math.random()*nW.length)|0];pp.set([q.x,q.y,q.z],i*3);pv[i*3]=(Math.random()-.5)*.5;pv[i*3+1]=sDir.y*1.2+(Math.random()-.3)*.4;pv[i*3+2]=sDir.z*1.1+(Math.random()-.5)*.3;pl[i]=1.1}}
+const NR=300,rp=new Float32Array(NR*6);for(let i=0;i<NR;i++){const x=Math.random()*16-8,y=Math.random()*9,z=Math.random()*12-7;rp.set([x,y,z,x,y-.35,z],i*6)}
+const rg=new T.BufferGeometry();rg.setAttribute('position',new T.BufferAttribute(rp,3));const rain=new T.LineSegments(rg,new T.LineBasicMaterial({color:0xcfe3f5,transparent:true,opacity:.6}));rain.visible=false;rain.frustumCulled=false;scene.add(rain);
+// state + physics
+const S={tank:80,z:-L/2+.02,pump:false,rain:false,sun:85};
+function log(){};
+const bases=parts.map(m=>m.position.clone());let exploded=0,isolated=false,chosen=null;
+addEventListener('message',e=>{if(e.origin!==location.origin)return;const d=e.data;
+ if(d.type==='state'){Object.assign(S,d.state);GA.rotation.y=S.tracking?S.azimuth*Math.PI/180:0;GA.rotation.x=S.tracking?(90-S.elevation)*Math.PI/180:TILT;CG.position.z=-L/2+.02+(L-.04)*S.progress;for(const [p,si] of [[A,S.siA],[B,S.siB]]){p.arr.fill((1-si)/.65);for(let i=0;i<64;i++){p.data[i*4]=p.arr[i]*255;p.data[i*4+3]=255}p.tex.needsUpdate=true}A.wet.material.opacity=S.pump?.25:0;sunL.intensity=.3+S.sun/70;rain.visible=S.rain;}
+ if(d.type==='select'){chosen=d.name;sel=parts.find(p=>p.userData.name===d.name)||null;if(!sel)parent.postMessage({type:'notice',text:'Concept module: geometry not supplied.'},location.origin);}
+ if(d.type==='explode'){exploded=d.value;parts.forEach((m,i)=>{m.position.copy(bases[i]);if(m.parent===GA||m.parent===CG)m.position.y+=exploded*(.4+(i%5)*.3)});}
+ if(d.type==='isolate'){isolated=d.value;parts.forEach(m=>m.visible=!isolated||m.userData.name===chosen);}
+ if(d.type==='camera')goal=CAM[d.value]||CAM.ov;
+ if(d.type==='labels')$('lb').click();
+ if(d.type==='xray')$('xr').click();
+});
+// interaction
+const rc=new T.Raycaster(),mv=new T.Vector2();let hov=null,sel=null;const tip=$('tip');
+function pick(e){const r=R.domElement.getBoundingClientRect();mv.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);rc.setFromCamera(mv,cam);const hits=rc.intersectObjects(parts);const h=hits.find(x=>x.object!==shell&&x.object.userData.name!=='Concrete pad')||hits.find(x=>x.object===shell);return h?h.object:null}
+R.domElement.addEventListener('pointermove',e=>{if(e.buttons)return;hov=pick(e);const r=view.getBoundingClientRect();if(hov){tip.style.display='block';tip.style.left=Math.min(e.clientX-r.left+14,r.width-250)+'px';tip.style.top=Math.min(e.clientY-r.top+14,r.height-90)+'px';tip.firstChild.textContent=hov.userData.name;tip.lastChild.textContent=hov.userData.desc;R.domElement.style.cursor='pointer'}else{tip.style.display='none';R.domElement.style.cursor='grab'}});
+let dn=null;R.domElement.addEventListener('pointerdown',e=>dn=[e.clientX,e.clientY]);R.domElement.addEventListener('pointerup',e=>{if(!dn||Math.hypot(e.clientX-dn[0],e.clientY-dn[1])>5)return;sel=pick(e);$('info').innerHTML=sel?`<b>${sel.userData.name}</b><br><span class="note">${sel.userData.desc}</span>`:'<b>Nothing selected</b>';if(sel)parent.postMessage({type:'selected',name:sel.userData.name,description:sel.userData.desc},location.origin)});
+const CAM={ov:[[1.2,6.7,13.5],[0,1,-.5]],cl:[[-4.6,3.2,3.8],[-1.9,1.4,0]],el:[[1.8,2.2,-.2],[0,.9,-2.9]],top:[[0,13,.3],[0,0,-.4]]};let goal=null;
+document.querySelectorAll('[data-cam]').forEach(b=>b.onclick=()=>goal=CAM[b.dataset.cam]);
+const names=['Panel A PV panel','Control B PV panel','Cleaning carriage','Silicone squeegee blade','Spray bar (fixed)','25GA-370 12 V gear motor','Water tank','12 V water pump','Electronics enclosure','ESP32-S2-DevKitM-1','Reference mini PV cell','Rain sensor','DHT22 temperature / humidity sensor','Top end-stop sensor'];
+const lbs=names.map(n=>{const m=parts.find(p=>p.userData.name===n);if(!m)return null;const d=document.createElement('div');d.className='lbl';d.textContent=n.replace(' PV panel','').replace('25GA-370 12 V ','').replace('ESP32-S2-DevKitM-1','ESP32');view.appendChild(d);return{m,d}}).filter(Boolean);let labels=false;
+$('lb').onclick=e=>{labels=!labels;e.target.classList.toggle('on',labels);lbs.forEach(l=>l.d.style.display=labels?'block':'none')};
+$('xr').onclick=e=>{const on=e.target.classList.toggle('on');shell.material.opacity=on?.2:.85;shell.material.depthWrite=!on};
+const v3=new T.Vector3();function size(){const w=view.clientWidth,h=view.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}addEventListener('resize',size);
+let last=performance.now(),acc=0;function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(S.pump)emit(Math.ceil(dt*260));
+ if(goal){cam.position.lerp(v3.set(...goal[0]),.07);ctl.target.lerp(new T.Vector3(...goal[1]),.07);if(cam.position.distanceTo(v3.set(...goal[0]))<.05)goal=null}
+ for(let i=0;i<NP;i++)if(pl[i]>0){pp[i*3]+=pv[i*3]*dt;pp[i*3+1]+=pv[i*3+1]*dt;pp[i*3+2]+=pv[i*3+2]*dt;pv[i*3+1]-=4*dt;pl[i]-=dt;if(pp[i*3+1]<1.53-.446*pp[i*3+2]&&Math.abs(pp[i*3+2])<1.1&&pp[i*3]<-.3&&pp[i*3]>-3.5)pl[i]=0;if(pl[i]<=0)pp[i*3+1]=-50}pg.attributes.position.needsUpdate=true;
+ if(S.rain){const a=rg.attributes.position.array;for(let i=0;i<NR;i++){const d=14*dt;a[i*6+1]-=d;a[i*6+4]-=d;if(a[i*6+4]<0){a[i*6+1]+=9.4;a[i*6+4]+=9.4}}rg.attributes.position.needsUpdate=true}
+ parts.forEach(m=>{if(m.material.emissive)m.material.emissive.setHex(m===sel?0x1b8aa6:m===hov?0x0d4a5c:0)});wv.scale.y=Math.max(.02,S.tank/100);wv.position.y=.08+.5*wv.scale.y;
+ if(labels)lbs.forEach(l=>{l.m.getWorldPosition(v3);v3.project(cam);l.d.style.left=(v3.x*.5+.5)*view.clientWidth+'px';l.d.style.top=(-v3.y*.5+.5)*view.clientHeight+'px';l.d.style.opacity=v3.z<1?1:0});
+ ctl.update();R.render(scene,cam);requestAnimationFrame(loop)}
+scene.background=new T.Color(0x142934);scene.fog.color=new T.Color(0x142934);gnd.material.color.setHex(0x162a32);parts.find(p=>p.userData.name==='Concrete pad').material.color.setHex(0x293e46);cam.position.set(1.2,6.7,13.5);ctl.target.set(0,1,-.5);size();parent.postMessage({type:'ready'},location.origin);requestAnimationFrame(loop);
+})();
+</script></body></html>
